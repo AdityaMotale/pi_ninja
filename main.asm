@@ -52,6 +52,29 @@ _start:
 
 ; parse ascii to integer
 atoi:
+        xor rax, rax
+        xor rcx, rcx
+.loop:
+        mov cl, [rbx]
+
+        cmp cl, '0'
+        jb .done
+
+        cmp cl, '9'
+        ja .done
+
+        imul rax, rax, 0x0A
+        sub cl, '0'
+        add rax, rcx
+        inc rbx
+
+        jmp .loop
+.done:
+        mov rdi, rax
+        and rdi, 0xFF
+
+        jmp calc_pi
+calc_pi:
         jmp exit
 
 print_error:
