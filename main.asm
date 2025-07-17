@@ -11,14 +11,65 @@ section .rodata
 
         help_msg_len equ $ - help_msg
 
+        invalid_args db "[Err]: Invalid arguments", 0x0A
+                     db "Use `-h` for help", 0x0A
+
+        invalid_args_len equ $ - invalid_args
+
+        version_info db "Pi(π)_Ninja V-0.1", 0x0A
+        version_info_len equ $ - version_info
+
 section .text
         global _start
 
 _start:
-        ; print help msg if no args are provided
-        cmp rdi, 0x01
-        jle print_help
-         
+        ; pull off argc and argv from stack
+        mov     rdi, [rsp]         ; rdi = argc
+        lea     rsi, [rsp + 8]     ; rsi = &argv[0]
+        
+        ; print error msg if no `argc != 2`
+        cmp rdi, 0x02
+        jne print_error
+
+        ; obtain pointer to argv[1]
+        mov rbx, [rsi + 8]
+        
+        ; check if its a command
+        mov al, [rbx]
+        cmp al, '-'
+        jne atoi
+
+        mov al, [rbx + 1]
+        
+        cmp al, 'h'
+        je print_help
+
+        cmp al, 'v'
+        je print_version
+
+        ; no matching cmd found
+        jmp print_error
+
+; parse ascii to integer
+atoi:
+        jmp exit
+
+print_error:
+        mov rax, 0x01
+        mov rdi, 0x01
+        lea rsi, [invalid_args]
+        mov rdx, invalid_args_len
+        syscall
+
+        jmp exit
+
+print_version:
+        mov rax, 0x01
+        mov rdi, 0x01
+        lea rsi, [version_info]
+        mov rdx, version_info_len
+        syscall
+
         jmp exit
 
 print_help:
