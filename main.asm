@@ -19,72 +19,107 @@ section .rodata
         version_info db "Pi(π)_Ninja V-0.1", 0x0A
         version_info_len equ $ - version_info
 
+section .bss
+        out_num resb 64            ; 64 bit num
+        argc resq 1                ; args count
+        argv resq 1                ; pointer to args buf
+
 section .text
         global _start
 
 _start:
         ; pull off argc and argv from stack
-        mov     rdi, [rsp]         ; rdi = argc
-        lea     rsi, [rsp + 8]     ; rsi = &argv[0]
+        mov rdi, [rsp]            ; rdi = argc
+        lea rsi, [rsp + 8]        ; rsi = &argv[0]
+
+        ; persist argc & argv
+        mov qword [argc], rdi
+        mov qword [argv], rsi
         
-        ; print error msg if no `argc != 2`
+        ; print error if `argc != 2`
         cmp rdi, 0x02
-        jne print_error
+        jne error_exit
 
-        ; obtain pointer to argv[1]
         mov rbx, [rsi + 8]
-        
-        ; check if its a command
         mov al, [rbx]
-        cmp al, '-'
-        jne atoi
 
-        mov al, [rbx + 1]
+        ; check if its a command
+        cmp al, '-'
+        je handle_cmds
         
+        jmp calc_pi 
+
+; handle CLI cmds like `-h`, `-v`, etc. and exit the program
+handle_cmds:
+        mov rbx, qword [argv]
+        mov rbx, qword [rbx + 8]
+        mov al, [rbx + 1]
+
+        ; print help and exit(0)
         cmp al, 'h'
         je print_help
 
+        ; print version and exit(0)
         cmp al, 'v'
         je print_version
 
-        ; no matching cmd found
-        jmp print_error
+        ; if cmd is invalid -> exit(1)
+        jmp error_exit
 
-; parse ascii to integer
-atoi:
+; calculate the value of pi
+calc_pi:
+        mov rdi, qword [argv]
+        mov rdi, qword [rdi + 8]
+
+        call function_atoi
+
+        mov rdi, rax
+        mov rax, 0x3C
+        syscall
+
+; Convert ASCII string to a 64-bit integer
+;
+; Args:
+;  rdi - pointer to input buf (null terminated)
+;
+; Ret:
+;  rax - parsed int value
+;
+; Clobbers:
+;  rcx
+function_atoi:
         xor rax, rax
         xor rcx, rcx
 .loop:
-        mov cl, [rbx]
+        mov cl, [rdi]
 
         cmp cl, '0'
-        jb .done
+        jb .done                   ; < '0' -> Done 
 
         cmp cl, '9'
-        ja .done
+        ja .done                   ; > '9' -> Done
 
-        imul rax, rax, 0x0A
-        sub cl, '0'
-        add rax, rcx
-        inc rbx
-
+        imul rax, rax, 0x0A        ; res *= 10
+        sub cl, '0'                ; digit = char - '0'
+        add rax, rcx               ; res += digit
+        
+        inc rdi                    ; inc buf pointer
         jmp .loop
 .done:
-        mov rdi, rax
-        and rdi, 0xFF
+        ret
 
-        jmp calc_pi
-calc_pi:
-        jmp exit
-
-print_error:
+error_exit:
+        ; print error
         mov rax, 0x01
         mov rdi, 0x01
         lea rsi, [invalid_args]
         mov rdx, invalid_args_len
         syscall
 
-        jmp exit
+        ; exit w/ error
+        mov rax, 0x3C
+        mov rdi, 0x01
+        syscall
 
 print_version:
         mov rax, 0x01
